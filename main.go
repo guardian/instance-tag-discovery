@@ -2,44 +2,109 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"time"
+	"path"
 
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 )
 
-// Prune EBS snapshots - example script using AWS SDK.
-func main() {
+const propertiesFilename = "tags.properties"
+const jsonFilename = "tags.json"
+const fileMode = 0644
 
-	// 1. Load credentials/config
+func main() {
+	outDirParam := flag.String("out-dir", "/etc/config/", "output directory")
+	instanceIDParam := flag.String("instance-id", "", "aws instance id")
+
+	flag.Parse()
+
+	instanceID, err := getInstanceID(*instanceIDParam)
+	check(err, "Error getting instance")
+
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
 		config.WithRegion("eu-west-1"),
-		config.WithSharedConfigProfile("frontend"),
+		config.WithSharedConfigProfile("deployTools"),
 	)
 	check(err, "Error loading config")
 
-	// 2. Initialise client for service you want (here ec2 is used)
-	client := ec2.NewFromConfig(cfg)
+	client := autoscaling.NewFromConfig(cfg)
 
-	// 3. Build and execute requests
-	input := ec2.DescribeSnapshotsInput{}
-	output, err := client.DescribeSnapshots(context.TODO(), &input)
-	check(err, "Describe snapshots failed")
+	tags, err := getTagsFromASG(client, instanceID)
 
-	// (4. Do some extra stuff)
-	sixtyDaysAgo := time.Now().AddDate(0, 0, -60)
+	check(err, "Error getting tags")
 
-	fmt.Println("Deleting snapshots...")
-	for _, s := range output.Snapshots {
-		if s.StartTime.Before(sixtyDaysAgo) && *s.OwnerId == "SOME ID" {
-			fmt.Printf("%s %s\n", s.StartTime.Format(time.RFC3339), *s.SnapshotId)
-			_, err = client.DeleteSnapshot(context.TODO(), &ec2.DeleteSnapshotInput{SnapshotId: s.SnapshotId, DryRun: false})
-			check(err, fmt.Sprintf("Unable to delete snapshot %s", *s.SnapshotId))
-		}
+	var fileContent string
+
+	for key, value := range tags {
+		fileContent = fileContent + fmt.Sprintf("%s=%s\n", key, value)
 	}
+
+	tagJSON, err := json.Marshal(tags)
+	check(err, "not json")
+
+	ioutil.WriteFile(path.Join(*outDirParam, propertiesFilename), []byte(fileContent), fileMode)
+	ioutil.WriteFile(path.Join(*outDirParam, jsonFilename), tagJSON, fileMode)
+}
+
+func getInstanceID(instanceIDParam string) (string, error) {
+	if instanceIDParam != "" {
+		return instanceIDParam, nil
+	}
+
+	client := imds.New(imds.Options{})
+	input := imds.GetInstanceIdentityDocumentInput{}
+	output, err := client.GetInstanceIdentityDocument(context.TODO(), &input)
+
+	if err != nil {
+		return "", err
+	}
+
+	return output.InstanceID, nil
+}
+
+func getTagsFromASG(client *autoscaling.Client, instanceID string) (map[string]string, error) {
+	response := map[string]string{}
+
+	describeASGInstancesInput := autoscaling.DescribeAutoScalingInstancesInput{
+		InstanceIds: []string{instanceID},
+	}
+	describeASGInstancesOutput, err := client.DescribeAutoScalingInstances(context.TODO(), &describeASGInstancesInput)
+
+	if err != nil {
+		return response, err
+	}
+
+	if asgInstancesLength := len(describeASGInstancesOutput.AutoScalingInstances); asgInstancesLength != 1 {
+		return response, fmt.Errorf("Expected 1 AutoScalingInstances. Got %v", asgInstancesLength)
+	}
+
+	asgName := describeASGInstancesOutput.AutoScalingInstances[0].AutoScalingGroupName
+
+	describeASGInput := autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: []string{*asgName},
+	}
+	describeASGOutput, err := client.DescribeAutoScalingGroups(context.TODO(), &describeASGInput)
+
+	if err != nil {
+		return response, err
+	}
+
+	if asgLength := len(describeASGOutput.AutoScalingGroups); asgLength != 1 {
+		return response, fmt.Errorf("Expected 1 AutoScalingGroups. Got %v", asgLength)
+	}
+
+	for _, tag := range describeASGOutput.AutoScalingGroups[0].Tags {
+		response[*tag.Key] = *tag.Value
+	}
+
+	return response, nil
 }
 
 func check(err error, msg string) {
