@@ -1,4 +1,4 @@
-module github.com/guardian/go-aws-example
+module github.com/guardian/instance-tag-discovery
 
 go 1.15
 
