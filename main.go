@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 const propertiesFilename = "tags.properties"
@@ -34,11 +36,24 @@ func main() {
 	)
 	check(err, "Error loading config")
 
-	client := autoscaling.NewFromConfig(cfg)
+	asgClient := autoscaling.NewFromConfig(cfg)
 
-	tags, err := getTagsFromASG(client, instanceID)
+	asgTags, err := getTagsFromASG(asgClient, instanceID)
 
-	check(err, "Error getting tags")
+	var tags map[string]string
+	if (err != nil) {
+		// check if err is lack of permission??
+		//check(err, "Error getting tags from ASG")
+		log.Print("Failed to get tags from ASG, falling back to EC2")
+		ec2Client := ec2.NewFromConfig(cfg)
+
+		tags, err = getTagsFromInstance(ec2Client, instanceID)
+
+		check(err, "Error getting tags from EC2")
+	} else {
+		log.Print("Tags fetched from ASG")
+		tags = asgTags
+	}
 
 	var fileContent string
 
@@ -49,12 +64,24 @@ func main() {
 	tagJSON, err := json.Marshal(tags)
 	check(err, "not json")
 
-	ioutil.WriteFile(path.Join(*outDirParam, propertiesFilename), []byte(fileContent), fileMode)
-	ioutil.WriteFile(path.Join(*outDirParam, jsonFilename), tagJSON, fileMode)
+	err = os.MkdirAll(*outDirParam, os.ModePerm)
+	check(err, "couldn't create directory")
+
+	propertiesPath := path.Join(*outDirParam, propertiesFilename)
+	jsonPath := path.Join(*outDirParam, jsonFilename)
+
+	err = ioutil.WriteFile(propertiesPath, []byte(fileContent), fileMode)
+	check(err, "couldn't create properties file")
+
+	err = ioutil.WriteFile(jsonPath, tagJSON, fileMode)
+	check(err, "couldn't create JSON file")
+
+	log.Printf("Written %d tags to %s and %s", len(tags), propertiesPath, jsonPath)
 }
 
 func getInstanceID(instanceIDParam string) (string, error) {
 	if instanceIDParam != "" {
+		log.Printf("Instance ID %s passed as param", instanceIDParam)
 		return instanceIDParam, nil
 	}
 
@@ -65,6 +92,8 @@ func getInstanceID(instanceIDParam string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	log.Printf("Instance ID from IMDS is %s", output.InstanceID)
 
 	return output.InstanceID, nil
 }
@@ -101,6 +130,35 @@ func getTagsFromASG(client *autoscaling.Client, instanceID string) (map[string]s
 	}
 
 	for _, tag := range describeASGOutput.AutoScalingGroups[0].Tags {
+		response[*tag.Key] = *tag.Value
+	}
+
+	return response, nil
+}
+
+func getTagsFromInstance(client *ec2.Client, instanceID string) (map[string]string, error) {
+	response := map[string]string{}
+
+	describeEC2InstanceInput := ec2.DescribeInstancesInput{
+		InstanceIds: []string{instanceID},
+	}
+	describeEC2InstanceOutput, err := client.DescribeInstances(context.TODO(), &describeEC2InstanceInput)
+	
+	if err != nil {
+		return response, err
+	}
+
+	if reservationsLength := len(describeEC2InstanceOutput.Reservations); reservationsLength != 1 {
+		return response, fmt.Errorf("Expected 1 Reservation. Got %v", reservationsLength)
+	}
+
+	instances := describeEC2InstanceOutput.Reservations[0].Instances
+
+	if length := len(instances); length != 1 {
+		return response, fmt.Errorf("Expected 1 Instance. Got %v", length)
+	}
+
+	for _, tag := range instances[0].Tags {
 		response[*tag.Key] = *tag.Value
 	}
 
