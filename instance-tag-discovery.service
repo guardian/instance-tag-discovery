@@ -1,0 +1,11 @@
+[Unit]
+Description=Instance tag discovery service
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/instance-tag-discovery
+
+[Install]
+WantedBy=multi-user.target
