@@ -4,7 +4,7 @@ mkdir target
 build() {
   PKG_ROOT="target/instance-tag-discovery-${GOARCH}_1.0-1"
   mkdir -p ${PKG_ROOT}/usr/bin ${PKG_ROOT}/DEBIAN
-  go build -o ${PKG_ROOT}/usr/bin/instance-tag-discovery .
+  GOOS=${GOOS} GOARCH=${GOARCH} go build -o ${PKG_ROOT}/usr/bin/instance-tag-discovery .
   cat > ${PKG_ROOT}/DEBIAN/control <<EOF
 Package: instance-tag-discovery
 Version: 1.0-1
