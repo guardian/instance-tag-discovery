@@ -12,3 +12,9 @@ The AWS SDK for Go has docs here:
 
 - https://aws.github.io/aws-sdk-go-v2/docs/ (developer guide)
 - https://pkg.go.dev/github.com/aws/aws-sdk-go-v2 (API reference)
+
+# Deployment
+
+This tool is baked into images in the cdk-base role in AMIgo. In order to update it you should grab the built artifacts from the GitHub actions build and upload them to `packages/deb/` in the AMIgo data bucket.
+
+It would be nice to make this work with RiffRaff at some stage.

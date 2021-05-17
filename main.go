@@ -44,14 +44,14 @@ func main() {
 	if (err != nil) {
 		// check if err is lack of permission??
 		//check(err, "Error getting tags from ASG")
-		log.Print("Failed to get tags from ASG, falling back to EC2")
+		logf("Failed to get tags from ASG, falling back to EC2")
 		ec2Client := ec2.NewFromConfig(cfg)
 
 		tags, err = getTagsFromInstance(ec2Client, instanceID)
 
 		check(err, "Error getting tags from EC2")
 	} else {
-		log.Print("Tags fetched from ASG")
+		logf("Tags fetched from ASG")
 		tags = asgTags
 	}
 
@@ -76,12 +76,12 @@ func main() {
 	err = ioutil.WriteFile(jsonPath, tagJSON, fileMode)
 	check(err, "couldn't create JSON file")
 
-	log.Printf("Written %d tags to %s and %s", len(tags), propertiesPath, jsonPath)
+	logf("Written %d tags to %s and %s", len(tags), propertiesPath, jsonPath)
 }
 
 func getInstanceID(instanceIDParam string) (string, error) {
 	if instanceIDParam != "" {
-		log.Printf("Instance ID %s passed as param", instanceIDParam)
+		logf("Instance ID %s passed as param", instanceIDParam)
 		return instanceIDParam, nil
 	}
 
@@ -93,7 +93,7 @@ func getInstanceID(instanceIDParam string) (string, error) {
 		return "", err
 	}
 
-	log.Printf("Instance ID from IMDS is %s", output.InstanceID)
+	logf("Instance ID from IMDS is %s", output.InstanceID)
 
 	return output.InstanceID, nil
 }
@@ -165,8 +165,13 @@ func getTagsFromInstance(client *ec2.Client, instanceID string) (map[string]stri
 	return response, nil
 }
 
+func logf(msg string, v ...interface{}) {
+	prefixedMessage := fmt.Sprintf("[instance-tag-discovery] %s", msg)
+	log.Printf(prefixedMessage, v...)
+}
+
 func check(err error, msg string) {
 	if err != nil {
-		log.Fatalf("%s; %v", msg, err)
+		log.Fatalf("[instance-tag-discovery] %s; %v", msg, err)
 	}
 }
