@@ -13,7 +13,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
@@ -39,7 +38,6 @@ func main() {
 	check(err, "unable to retrieve credentials")
 
 	imdsClient := imds.New(imds.Options{})
-	asgClient := autoscaling.NewFromConfig(cfg)
 	ec2Client := ec2.NewFromConfig(cfg)
 
 	instanceID, err := getInstanceID(imdsClient, *instanceIDParam)
@@ -47,13 +45,8 @@ func main() {
 
 	tags, err := tagsFromIMDS(imdsClient)
 	if err != nil {
-		logf("failed to get tags from instance metadata, falling back to ASG. Metadata error was: %v", err)
-		tags, err = getTagsFromASG(asgClient, instanceID)
-
-		if err != nil {
-			logf("failed to get tags from ASG, falling back to EC2. ASG error was: %v", err)
-			tags, err = getTagsFromInstance(ec2Client, instanceID)
-		}
+		logf("failed to get tags from instance metadata, falling back to EC2 API. Metadata error was: %v", err)
+		tags, err = getTagsFromInstance(ec2Client, instanceID)
 	}
 
 	tagProperties := ""
@@ -122,44 +115,6 @@ func tagsFromIMDS(client *imds.Client) (map[string]string, error) {
 	}
 
 	return tags, err
-}
-
-func getTagsFromASG(client *autoscaling.Client, instanceID string) (map[string]string, error) {
-	response := map[string]string{}
-
-	describeASGInstancesInput := autoscaling.DescribeAutoScalingInstancesInput{
-		InstanceIds: []string{instanceID},
-	}
-	describeASGInstancesOutput, err := client.DescribeAutoScalingInstances(context.TODO(), &describeASGInstancesInput)
-
-	if err != nil {
-		return response, fmt.Errorf("unable to describe asg instances: %w", err)
-	}
-
-	if asgInstancesLength := len(describeASGInstancesOutput.AutoScalingInstances); asgInstancesLength != 1 {
-		return response, fmt.Errorf("Expected 1 AutoScalingInstances. Got %v", asgInstancesLength)
-	}
-
-	asgName := describeASGInstancesOutput.AutoScalingInstances[0].AutoScalingGroupName
-
-	describeASGInput := autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: []string{*asgName},
-	}
-	describeASGOutput, err := client.DescribeAutoScalingGroups(context.TODO(), &describeASGInput)
-
-	if err != nil {
-		return response, err
-	}
-
-	if asgLength := len(describeASGOutput.AutoScalingGroups); asgLength != 1 {
-		return response, fmt.Errorf("Expected 1 AutoScalingGroups. Got %v", asgLength)
-	}
-
-	for _, tag := range describeASGOutput.AutoScalingGroups[0].Tags {
-		response[*tag.Key] = *tag.Value
-	}
-
-	return response, nil
 }
 
 func getTagsFromInstance(client *ec2.Client, instanceID string) (map[string]string, error) {

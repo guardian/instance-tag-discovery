@@ -6,7 +6,6 @@ Tags are fetched from (in order of preference):
 
 * instance metadata (IMDS v2 - enable tags via [Launch Template
   metadata](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-instancemetadatatags))
-* the ASG
 * the EC2 instance (EC2 API)
 
 They are written to:
