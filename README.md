@@ -44,6 +44,6 @@ The AWS SDK for Go has docs here:
 
 This tool is baked into images in the cdk-base role in AMIgo. In order to update
 it you should grab the built artifacts from the GitHub actions build and upload
-them to `packages/deb/` in the AMIgo data bucket.
+them to `packages/instance-tag-discovery/` in the AMIgo data bucket.
 
 It would be nice to make this work with RiffRaff at some stage.
