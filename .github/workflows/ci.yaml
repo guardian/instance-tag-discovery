@@ -27,7 +27,6 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     needs: [test]
-    if: github.ref == 'refs/heads/main'
 
     # Required by aws-actions/configure-aws-credentials
     permissions:
