@@ -47,6 +47,7 @@ func main() {
 	if err != nil {
 		logf("failed to get tags from instance metadata, falling back to EC2 API. Metadata error was: %v", err)
 		tags, err = getTagsFromInstance(ec2Client, instanceID)
+		check(err, fmt.Sprintf("failed to get tags from EC2 API. Error was: %v", err))
 	}
 
 	tagProperties := ""
