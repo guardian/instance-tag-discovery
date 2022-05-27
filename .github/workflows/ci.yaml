@@ -48,15 +48,24 @@ jobs:
         with:
           role-to-assume: ${{ secrets.GU_RIFF_RAFF_ROLE_ARN }}
           aws-region: eu-west-1
-      - uses: guardian/actions-riff-raff@main
+      - uses: guardian/actions-riff-raff@v1
         with:
           app: instance-tag-discovery
-          stack: deploy
-          deployments: |
-            instance-tag-discovery:
-              type: aws-s3
-              sources: ${{ env.BINARY_NAME }}-arm64,${{ env.BINARY_NAME }}-amd64
-              parameters:
-                bucket: amigo-data
-                cacheControl: private
-                publicReadAcl: false
+          config: |
+            stacks:
+              - deploy
+            regions:
+              - eu-west-1
+            allowedStages:
+              - CODE
+              - PROD
+            deployments:
+              instance-tag-discovery:
+                type: aws-s3
+                sources:
+                  - ${{ env.BINARY_NAME }}-arm64
+                  - ${{ env.BINARY_NAME }}-amd64
+                parameters:
+                  bucket: amigo-data
+                  cacheControl: private
+                  publicReadAcl: false
