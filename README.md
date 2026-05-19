@@ -28,7 +28,7 @@ Install Go:
 Then run some commands:
 
     go test
-    go run main.go --profile [profile] --out-dir . --instance-id [some-id]
+    AWS_PROFILE=<profile> go run main.go --out-dir . --instance-id [some-id]
 
 If unsure about editors, we recommend using VS Code.
 

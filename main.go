@@ -23,14 +23,12 @@ const fileMode = 0644
 func main() {
 	outDirParam := flag.String("out-dir", "/etc/config/", "output directory")
 	instanceIDParam := flag.String("instance-id", "", "AWS instance id")
-	profileParam := flag.String("profile", "deployTools", "AWS credentials profile (useful if running locally)")
 
 	flag.Parse()
 
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
 		config.WithRegion("eu-west-1"),
-		config.WithSharedConfigProfile(*profileParam),
 	)
 	check(err, "error loading config")
 
