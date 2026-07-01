@@ -46,7 +46,7 @@ jobs:
           GOOS=linux GOARCH=arm64 go build -o $BINARY_NAME-arm64 main.go
           GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME-amd64 main.go
 
-      - uses: guardian/actions-riff-raff@v4.3.1
+      - uses: guardian/actions-riff-raff@v4.3.3
         with:
           projectName: deploy::instance-tag-discovery
           roleArn: ${{ secrets.GU_RIFF_RAFF_ROLE_ARN }}
